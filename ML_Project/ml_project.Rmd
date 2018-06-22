@@ -1,0 +1,127 @@
+---
+title: "Project"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Data
+
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. Any variable can be used to predict. 
+
+### Loading the dataset
+
+```{r}
+training.raw <- read.csv("pml-training.csv")
+testing.raw <- read.csv("pml-testing.csv")
+```
+
+### Data Exploration and Data Cleaning
+```{r}
+dim(training.raw)
+```
+
+### Removing the Null Values and Converting to the numeric values
+```{r}
+
+count <- nrow(training.raw) / 100 * 30
+removeColumns <- which(colSums(is.na(training.raw) | training.raw=="") > count)
+training.refined <- training.raw[,-removeColumns]
+testing.refined <- testing.raw[,-removeColumns]
+
+classeLevels <- levels(training.refined$classe)
+training.modified <- data.frame(data.matrix(training.refined))
+training.modified$classe <- factor(training.refined$classe, labels=classeLevels)
+testing.modified <- data.frame(data.matrix(testing.refined))
+
+columns_extra <- grep("timestamp", names(training.modified))
+training.modified <- training.modified[,-c(1, columns_extra )]
+testing.modified <- testing.modified[,-c(1, columns_extra )]
+```
+
+### Splitting the Dataset into Training and Testing Set
+
+### Loading the caret module
+```{r}
+set.seed(29)
+library(caret)
+```
+
+### Splitting the dataset
+```{r}
+indices <- which(names(training.modified) == "classe")
+data_partition <- createDataPartition(y=training.modified$classe, p=0.75, list=FALSE)
+training.train <- training.modified[data_partition, ]
+training.test <- training.modified[-data_partition, ]
+```
+
+### Observing the correlation matrix and Visualizing
+```{r}
+correlations <- cor(training.train[, -indices], as.numeric(training.train$classe))
+bestCorrelations <- subset(as.data.frame(as.table(correlations)), abs(Freq)>0.5)
+#bestCorrelations
+
+library(Rmisc)
+library(ggplot2)
+
+plot_1 <- ggplot(training.train, aes(classe,pitch_forearm)) + 
+  geom_boxplot(aes(fill=classe))
+
+plot_2 <- ggplot(training.train, aes(classe, magnet_arm_x)) + 
+  geom_boxplot(aes(fill=classe))
+
+multiplot(plot_1,plot_2, echo = TRUE)
+```
+
+```{r}
+library(corrplot)
+corr <- cor(training.train[, -indices])
+correlated_columns <- findCorrelation(corr, cutoff=0.5, exact=TRUE)
+columns_to_be_excluded <- c(correlated_columns, indices)
+corrplot(corr, method="color", type="lower", tl.srt = 35,tl.cex=0.5, tl.col="red")
+```
+
+### Excluding the above highly correlated columns using PCA
+```{r}
+pca_processing.all <- preProcess(training.train[, -indices], method = "pca")
+training.train.pca.all <- predict(pca_processing.all, training.train[, -indices])
+training.test.pca.all <- predict(pca_processing.all, training.test[, -indices])
+testing.pca.all <- predict(pca_processing.all, testing.modified[, -indices])
+
+```
+### Applying Random Forest Algorithm for predicting the test results
+
+```{r}
+library(randomForest)
+rfMod.model <- randomForest(
+  x=training.train[, -indices], 
+  y=training.train$classe,
+  xtest=training.test[, -indices], 
+  ytest=training.test$classe, 
+  ntree=100,
+  keep.forest=TRUE,
+  proximity=TRUE)
+```
+### Accuracy of the model built
+```{r}
+rfMod.model.training.accuracy <- round(1-sum(rfMod.model$confusion[, 'class.error']),2)
+paste0("Accuracy on training: ",rfMod.model.training.accuracy)
+rfMod.model.testing.accuracy <- round(1-sum(rfMod.model$test$confusion[, 'class.error']),2)
+paste0("Accuracy on testing: ",rfMod.model.testing.accuracy)
+```
+### Predicting the testing Data
+```{r}
+predictions <- predict(rfMod.model, testing.modified)
+predictions
+```
+
