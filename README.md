@@ -1,5 +1,7 @@
 # Practical_ML_JHU
 
+The project is done under the curriculum of <b> Pratical Machine Learning </b> course by <b> Johns Hopkins University </b> on <b> Coursera </b>.
+
 #### Description of the project : 
 
 The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
